@@ -1,0 +1,119 @@
+#Include 'tlpp-object.th'
+#Include 'tlpp-core.th'
+#Include 'Protheus.ch'
+
+Class OFXParser 
+    Private Data cOFXContent as Character
+
+    Public Method New(cOFXContent as Character) as Object
+    Public Method ToXML() as Character
+    Private Method CloseTags() as Logical
+    Private Method GetTag(nPosition as Numeric, cContent as Character) as Character
+    Private Method ExistEndTag(cTag as Character, cContent as Character) as Logical
+    Private Method FindNextTag(cContent as Character) as Numeric 
+    Private Method MakeEndTag(cTag as Character) as Character
+    Private Method RemoveHeaderFromOFX(cOFXContent as Character) as Character
+EndClass
+
+Method New(cOFXContent as Character) as Object Class OFXParser
+    self:cOFXContent := cOFXContent
+Return self
+
+Method ToXML() as Character Class OFXParser
+    Local cOFXWellFormed  as Character
+    cOFXWellFormed := self:cOFXContent
+    cOFXWellFormed := self:RemoveHeaderFromOFX(cOFXWellFormed)
+    While self:CloseTags(@cOFXWellFormed) == .F.
+    EndDo
+Return cOFXWellFormed
+
+Method CloseTags(cOFXWellFormed as Character) as Logical Class OFXParser
+    Local lEnd as Logical
+    Local n as Numeric
+    Local cOFXContent := cOFXWellFormed
+    lEnd := .F.
+
+    For n:=1 To Len(cOFXContent)
+        cCharacter := SubStr(cOFXContent, n, 1)
+
+        if (cCharacter == '<') 
+            cNextCharacter := SubStr(cOFXContent, n+1, 1)
+            if (cNextCharacter != '/')
+                cTag := self:GetTag(n, cOFXContent)
+                nPositionWithoutTag := n+Len(cTag)
+                cOFXContentWithoutTag := SubStr(cOFXContent, nPositionWithoutTag)
+                lExistEndTag := self:ExistEndTag(cTag, cOFXContentWithoutTag)
+
+                If !lExistEndTag
+                    nPositionNextTag := self:FindNextTag(cOFXContentWithoutTag)
+                    cEndTag := self:MakeEndTag(cTag)
+                    nInsert := n + Len(cTag) + nPositionNextTag - 1
+                    cOFXContent := Stuff(cOFXContent, nInsert, 0, cEndTag)
+                    Exit
+                EndIf
+            EndIf
+        EndIf
+    Next
+
+    If n >= Len(cOFXContent)
+        lEnd := .T.
+    EndIf
+
+    cOFXWellFormed := cOFXContent
+Return lEnd
+
+Method GetTag(nPosition as Numeric, cContent as Character) as Character Class OFXParser
+
+    Local cTag as Character
+    Local n as Numeric
+
+    cContent := SubStr(cContent, nPosition)
+
+    cTag := ''
+    For n:=1 To Len(cContent)
+        cCharacter := SubStr(cContent, n, 1)
+        cTag += cCharacter
+        If (cCharacter == '>')
+            Exit
+        EndIf
+    Next
+Return cTag
+
+Method ExistEndTag(cTag as Character, cContent as Character) as Logical Class OFXParser
+
+    Local lExists as Logical
+    Local cEndTag as Character
+    Local nPosition as Numeric
+
+    lExists := .F.
+
+    cEndTag := StrTran(cTag, '<', '</')
+
+    nPosition := At(cEndTag, cContent)
+
+    lExists := IIF(nPosition > 0, .T., .F.)
+
+Return lExists
+
+Method FindNextTag(cContent as Character) as Numeric Class OFXParser
+    Local nPosition as Numeric
+    Local n as Numeric
+    Local cCharacter as Character
+    nPosition := 0
+
+    For n:=1 To Len(cContent)
+        cCharacter := SubStr(cContent, n, 1)
+        if (cCharacter == '<') 
+            nPosition := n
+            Exit
+        EndIf
+    Next
+Return nPosition
+
+Method MakeEndTag(cTag as Character) as Character Class OFXParser
+    Local cEndTag as Character
+    cEndTag := StrTran(cTag, '<', '</')
+Return cEndTag
+
+Method RemoveHeaderFromOFX(cOFXContent as Character) as Character Class OFXParser
+Return SubStr(cOFXContent, At('<OFX>', cOFXContent))
